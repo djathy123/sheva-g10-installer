@@ -1,4 +1,4 @@
-# SHEVA AI Factory — G10 One-Command Installer v0.2.0
+# SHEVA AI Factory — G10 One-Command Installer v0.2.1
 
 **Objectif:** exécuter une seule commande sur chaque Mac pour installer une base d'outils SHEVA reproductible, puis qualifier les moteurs et l'architecture. Ce bundle **n'est pas encore une release publique** et la distribution automatique depuis Internet n'est pas configurée.
 
@@ -43,7 +43,7 @@ Vérification non destructive : `bash ~/sheva-g10-installer/install.sh --profile
 
 ## État du développement
 
-- Version v0.2.0 : vérification de la syntaxe, plan et inventaire non destructifs sur Mac M1 et M4.
+- Version v0.2.1 : vérification de la syntaxe, plan et inventaire non destructifs sur Mac M1 et M4.
 - Non testé au moment de la publication : installation intégrale sur machine vierge, échec et reprise par étape, connexion durable OpenHands / Hatchet / LangGraph, worker distribué, restauration de données réelles, Linux x86_64.
 - Le prochain jalon est un test réel en laboratoire M4 avec consentement du propriétaire, puis un paquet versionné distribuable par une URL vérifiée. Ne pas inventer une URL d'installation avant publication.
 
@@ -74,20 +74,20 @@ Les données d'état sont recomputées à chaque exécution, sans mémoire du ch
 **Scope G10 v0.2 :** 23 composants surveillés (21 de la matrice initiale + Claude/Codex CLI), trois Skills pilotes versionnés ; le but de 108 Skills est encore un backlog. Le CLI ne donne aucun compte IA à une autre personne, ne télécharge pas de moteur SHEVA privé, ne relie pas les workers entre ordinateurs et n'autorise aucun reset/staging/production. L'état `INSTALLED` prouve la présence d'un composant, pas que son agent est authentifié.
 
 
-## Distribution autonome Mac Apple Silicon — v0.2.0
+## Distribution autonome Mac Apple Silicon — v0.2.1
 
-Télécharger le ZIP `SHEVA_AI_FACTORY_G10_MAC_ARM64_v0.2.zip` puis le placer dans `~/Downloads/`.
+Télécharger le ZIP `SHEVA_AI_FACTORY_G10_MAC_ARM64_v0.2.1.zip` puis le placer dans `~/Downloads/`.
 
 **Une seule commande pour une machine neuve** (décompresse et installe le profil complet et les Skills M13) :
 
 ```bash
-bash -c 'set -e; z="$HOME/Downloads/SHEVA_AI_FACTORY_G10_MAC_ARM64_v0.2.zip"; d="$HOME/sheva-g10-installer"; test -f "$z" || { echo "Archive absente: $z"; exit 1; }; mkdir -p "$d"; /usr/bin/unzip -oq "$z" -d "$d"; /bin/bash "$d/bootstrap-macos.sh" --profile full --mission m13 --apply'
+bash -c 'set -e; z="$HOME/Downloads/SHEVA_AI_FACTORY_G10_MAC_ARM64_v0.2.1.zip"; d="$HOME/sheva-g10-installer"; test -f "$z" || { echo "Archive absente: $z"; exit 1; }; mkdir -p "$d"; /usr/bin/unzip -oq "$z" -d "$d"; /bin/bash "$d/bootstrap-macos.sh" --profile full --mission m13 --apply'
 ```
 
 Simulation préalable sans téléchargement de packages :
 
 ```bash
-bash -c 'set -e; z="$HOME/Downloads/SHEVA_AI_FACTORY_G10_MAC_ARM64_v0.2.zip"; d="$HOME/sheva-g10-installer"; mkdir -p "$d"; /usr/bin/unzip -oq "$z" -d "$d"; /bin/bash "$d/bootstrap-macos.sh" --profile full --mission m13'
+bash -c 'set -e; z="$HOME/Downloads/SHEVA_AI_FACTORY_G10_MAC_ARM64_v0.2.1.zip"; d="$HOME/sheva-g10-installer"; mkdir -p "$d"; /usr/bin/unzip -oq "$z" -d "$d"; /bin/bash "$d/bootstrap-macos.sh" --profile full --mission m13'
 ```
 
 Pour un Mac à 8 Go, remplacer `--profile full` par `--profile controller`; pour FIGO, choisir `--mission figo` (Skills pilotes FIGO chargés à la demande). Après installation : `~/sheva-g10-installer/sheva-factory roadmap --mission m13`.
@@ -99,3 +99,14 @@ Pour un Mac à 8 Go, remplacer `--profile full` par `--profile controller`; pour
 **Couverture :** 21 composants de l'architecture plus Claude/Codex CLI surveillés, dont des services qui ne sont pas activés automatiquement (Langfuse, Backstage, pgTAP); seulement trois Skills pilotes fournis ; les 108 Skills prévus restent à créer/évaluer. OpenHands peut démarrer séparément et l'authentification des agents est volontairement séparée de l'installation. Le statut d'installation PASS n'est pas une certification de mission ou de production.
 
 **Distribution :** cette archive n'a pas d'URL publique GitHub vérifiée. Ne pas employer `curl https://... | bash` avec une URL inventée. Pour installation sur une autre machine, utiliser le ZIP vérifié téléchargé ici ou une future release officiellement publiée.
+
+
+## GitHub direct install v0.2.1 (macOS ARM64 only)
+
+From a fresh Apple Silicon Mac, after reviewing the script:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/djathy123/sheva-g10-installer/v0.2.1/install-remote.sh | bash -s -- --profile full --mission m13 --apply
+```
+
+After installation: `source ~/.zshrc`, then `sheva-factory tools` to check the canonical 21 components, or `sheva-factory roadmap --mission figo`. The 3 unavailable services are pgTAP, Langfuse and Backstage until deployed separately. The installer does not provide 108 Skills, or authenticate agent accounts.

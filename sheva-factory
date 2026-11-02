@@ -1,4 +1,13 @@
 #!/bin/sh
 set -eu
-HERE=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+SOURCE=$0
+while [ -L "$SOURCE" ]; do
+  DIR=$(CDPATH= cd -- "$(dirname -- "$SOURCE")" && pwd)
+  LINK=$(readlink "$SOURCE")
+  case "$LINK" in
+    /*) SOURCE=$LINK ;;
+    *) SOURCE="$DIR/$LINK" ;;
+  esac
+done
+HERE=$(CDPATH= cd -- "$(dirname -- "$SOURCE")" && pwd)
 exec /usr/bin/env python3 "$HERE/sheva-cli.py" "$@"

@@ -3,7 +3,7 @@
 import argparse, datetime, hashlib, json, os, platform, shutil, subprocess, sys
 from pathlib import Path
 
-VERSION = "0.2.0"
+VERSION = "0.2.1"
 ROOT = Path.home() / "sheva-toolchain"
 PACKAGES_PY = ["langgraph==1.1.10", "langgraph-checkpoint-sqlite==3.1.3", "hatchet-sdk==1.44.0"]
 PACKAGES_NODE = ["@openhands/agent-canvas@1.34.0", "nx@24.0.3", "dependency-cruiser@18.7.0",
@@ -124,6 +124,13 @@ def install_step(step):
             raise RuntimeError("CLI_SYMLINK_CONFLICT: "+str(path))
         else:
             path.symlink_to(src)
+        rc=Path.home()/".zshrc"
+        entry='export PATH="$HOME/.local/bin:$PATH"'
+        existing=rc.read_text() if rc.exists() else ""
+        if entry not in existing:
+            with rc.open("a") as f:
+                f.write("\n# SHEVA G10 tools and CLI\n"+entry+"\n")
+            print("ZSH_PATH_CONFIGURED: restart terminal or source ~/.zshrc")
     elif step == "ollama": brew("ollama")
     else: raise RuntimeError("unknown step: "+step)
 def report(profile, mode, outcomes):

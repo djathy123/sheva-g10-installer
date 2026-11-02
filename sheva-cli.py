@@ -40,6 +40,21 @@ BINARY={
  "claude_code_cli":BINPATH/"claude",
  "codex_cli":BINPATH/"codex",
 }
+# Canonical SHEVA M21 architecture components (not counting Claude/Codex CLIs).
+TOOLS_21=("spec_kit","structurizr","graphify","nx","dependency_cruiser","ast_grep",
+          "langgraph","hatchet","openhands_agent_server","openhands_canvas",
+          "orval","ts_rest","msw","pact","supabase_cli","pgtap_lab",
+          "semgrep","playwright","act","langfuse_service","backstage_service")
+AGENT_CLI=("claude_code_cli","codex_cli")
+RUNTIME_SERVICES={"openhands_agent_server","openhands_canvas","pgtap_lab","langfuse_service","backstage_service"}
+TOOL_NOTES={
+ "hatchet":"SDK importable, worker Hatchet durable NON certifie",
+ "openhands_canvas":"Canvas endpoint HTTP /ready",
+ "openhands_agent_server":"Agent Server endpoint HTTP /ready",
+ "pgtap_lab":"Labo PostgreSQL pgTAP non deploye",
+ "langfuse_service":"Observabilite Langfuse non deployee",
+ "backstage_service":"Catalogue Backstage non deploye",
+}
 def shell(args,timeout=6):
  try:
   r=subprocess.run(args,capture_output=True,text=True,timeout=timeout)
@@ -101,19 +116,25 @@ def skill_state(mission):
   return {"registry":"PASS" if all(x["source_verified"] for x in rows) else "INVALID","mission":mission,"selected":rows}
  except Exception as e:return {"registry":"INVALID","reason":type(e).__name__,"mission":mission,"selected":[]}
 def apply_report():
+ fallback=None
  for name in ("last-apply.json","last-install.json"):
   p=REPORTS/name
   if p.is_file():
    try:
     a=json.loads(p.read_text())
-    if a.get("mode")=="APPLY":return {"path":str(p),"profile":a.get("profile"),"stages":a.get("steps",[])}
+    if a.get("mode")=="APPLY":
+     steps=a.get("steps",[])
+     candidate={"path":str(p),"profile":a.get("profile"),"stages":steps}
+     if len(steps)>=8 and all(x.get("status")=="PASS" for x in steps):
+      return candidate
+     fallback=candidate
    except Exception:pass
  log=HOME/"sheva-g10-installer/m4-full-apply-20261102.log"
  if log.is_file():
   content=log.read_text(errors="replace")
   if "INSTALL_STAGES_PASS 10 / 10" in content and "SHEVA_G10_APPLY_EXIT=0" in content:
    return {"profile":"full","status":"PASS_LOG_VERIFIED","evidence":str(log),"stages":10}
- return {"status":"NONE"}
+ return fallback or {"status":"NONE"}
 def overview(mission):
  items=installed()
  role="M4-worker" if platform.machine()=="arm64" and (os.cpu_count() or 0)>=8 and shutil.disk_usage(HOME).free>30*1024**3 else "controller-or-restricted"
@@ -137,7 +158,9 @@ def overview(mission):
  return {"schema":"sheva.factory.roadmap.v0.2","host":platform.node(),"role_hint":role,"platform":platform.system()+"-"+platform.machine(),
   "date_utc":dt.datetime.now(dt.timezone.utc).isoformat(),
   "free_gib":round(shutil.disk_usage(HOME).free/1024**3,2),
-  "tools":items,"counts":{"installed_or_healthy":sum(items.values()),"total":len(items)},
+  "tools":items,"counts":{"installed_or_healthy":sum(bool(items.get(k)) for k in TOOLS_21),"total":len(TOOLS_21),
+                            "agents_installed":sum(bool(items.get(k)) for k in AGENT_CLI)},
+  "tool_registry":list(TOOLS_21),"agent_cli":{k:bool(items.get(k)) for k in AGENT_CLI},
   "services":{"docker_ready":shell(["docker","info","--format","{{.ServerVersion}}"],timeout=7)[0] if shutil.which("docker") else False,
               "canvas_ready":health(18180) or health(18080),"agent_server_ready":health(18000)},
   "skills":skills,"last_real_install":apply,"roadmap":roadmap,
@@ -148,8 +171,9 @@ def safe_report(data,name):
  p.write_text(json.dumps(data,ensure_ascii=False,sort_keys=True,indent=2)+"\n")
  return p
 def print_roadmap(d):
- print("SHEVA AI FACTORY CLI v0.2 |",d["host"],"|",d["role_hint"],"| mission",d["skills"]["mission"].upper())
- print("TOOLS: %s/%s detected, disk free %.2f GiB"%(d["counts"]["installed_or_healthy"],d["counts"]["total"],d["free_gib"]))
+ print("SHEVA AI FACTORY CLI v0.2.1 |",d["host"],"|",d["role_hint"],"| mission",d["skills"]["mission"].upper())
+ print("SHEVA 21 TOOLS: %s/%s present or healthy (not all integrations certified), disk free %.2f GiB"%(d["counts"]["installed_or_healthy"],d["counts"]["total"],d["free_gib"]))
+ print("AGENT CLI EXTRAS: Claude Code=%s Codex=%s"%(d["agent_cli"]["claude_code_cli"],d["agent_cli"]["codex_cli"]))
  print("SERVICES:",json.dumps(d["services"],sort_keys=True))
  print("LAST APPLY:",d["last_real_install"].get("profile",d["last_real_install"].get("status","NONE")))
  print("\nG10 ROADMAP:")
@@ -186,7 +210,7 @@ print('SYNTHETIC_WORKER_CHECKPOINT_PASS')
  if not passed:raise SystemExit(6)
 def main():
  p=argparse.ArgumentParser(prog="sheva-factory",description="G10 machine-local CLI without conversation dependency")
- p.add_argument("command",choices=["status","roadmap","doctor","install","skills","worker","supervise","reports"])
+ p.add_argument("command",choices=["status","roadmap","tools","doctor","install","skills","worker","supervise","reports"])
  p.add_argument("action",nargs="?",default=None)
  p.add_argument("--mission",choices=MISSIONS,default="m13")
  p.add_argument("--profile",choices=["controller","worker","full","gpu"],default="full")
@@ -216,7 +240,17 @@ def main():
    print(name,"PRESENT" if path.exists() else "MISSING")
   return
  d=overview(a.mission)
- if a.command=="supervise":
+ if a.command=="tools":
+  print("SHEVA ARCHITECTURE — 21 COMPONENTS",d["host"])
+  print("VERIFIED PRESENT / HEALTHY:",d["counts"]["installed_or_healthy"],"/21")
+  for idx,name in enumerate(TOOLS_21,1):
+   present=d["tools"].get(name,False)
+   status=("READY_HTTP_200" if name in {"openhands_agent_server","openhands_canvas"} and present
+           else ("PRESENT_ONLY" if present else "NOT_READY"))
+   print(f"{idx:02d}. {name:27} {status} {TOOL_NOTES.get(name,'')}")
+  print("EXTRA AGENT CLIS",d["agent_cli"])
+  print("REPORT",safe_report(d,"tools-21.json"))
+ elif a.command=="supervise":
   if a.action not in ("once",None):p.error("supervise: once")
   if a.watch:
    if not 2<=a.interval<=3600 or a.count<0:p.error("invalid watch interval/count")

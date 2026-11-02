@@ -5,13 +5,13 @@ if [[ "$(uname -s)" != Darwin || "$(uname -m)" != arm64 ]]; then
   echo "SHEVA_HOLD: macOS Apple Silicon required." >&2
   exit 3
 fi
-URL="https://github.com/djathy123/sheva-g10-installer/releases/download/v0.2.0/SHEVA_AI_FACTORY_G10_MAC_ARM64_v0.2.zip"
-EXPECTED="eeefa06adbf419190e9bcf0abc3a3a69d244b60494933028b28aaac6b60bf24e"
+URL="https://github.com/djathy123/sheva-g10-installer/releases/download/v0.2.1/SHEVA_AI_FACTORY_G10_MAC_ARM64_v0.2.1.zip"
+EXPECTED="c0cde6186255147e8cd56356de12503de660841d358036ef92760e478e159984"
 DEST="$HOME/sheva-g10-installer"
 TMP="$(/usr/bin/mktemp -d -t sheva-g10-release)"
 trap 'rm -rf "$TMP"' EXIT
 
-echo "[SHEVA] Downloading verified G10 v0.2.0 from GitHub."
+echo "[SHEVA] Downloading verified G10 v0.2.1 from GitHub."
 /usr/bin/curl --fail --location --silent --show-error --retry 2 --connect-timeout 12 --max-time 180 "$URL" -o "$TMP/bundle.zip"
 ACTUAL="$(/usr/bin/shasum -a 256 "$TMP/bundle.zip" | /usr/bin/awk '{print $1}')"
 if [[ "$ACTUAL" != "$EXPECTED" ]]; then
