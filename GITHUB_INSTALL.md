@@ -7,15 +7,15 @@ Ce dépôt **public** contient uniquement le bootstrap Mac Apple Silicon, les CL
 Après avoir examiné [install-remote.sh](install-remote.sh), exécuter dans Terminal :
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/djathy123/sheva-g10-installer/v0.2.2/install-remote.sh | bash -s -- --profile full --mission m13 --apply
+curl -fsSL https://raw.githubusercontent.com/djathy123/sheva-g10-installer/v0.3.0/install-remote.sh | bash -s -- --profile full --mission m13 --apply
 ```
 
 Pour un Mac de 8 Go RAM, remplacer `full` par `controller`. Pour FIGO, remplacer `m13` par `figo`. Pré-requis : macOS ARM64, Command Line Tools Apple, Internet, droits d'installation et >=25 GiB libres pour le profil full.
 
-Le bootstrap récupère **uniquement** l'archive GitHub Release `v0.2.2` et exige son SHA256 épinglé :
+Le bootstrap récupère **uniquement** l'archive GitHub Release `v0.3.0` et exige son SHA256 épinglé :
 
 ```
-43abc8b51cf07d8e47126f231781d8185c2ce9d7c1ec6a86b2aa0bbd68b909a2
+f5b3c949cb4a6204c5ed299e2a245aca630fc48a3a614f2240ab3551e37cc624
 ```
 
 Il vérifie aussi les 12 empreintes de fichiers avant de lancer le profil choisi. Il refuse de remplacer silencieusement un autre pack local.
@@ -23,7 +23,7 @@ Il vérifie aussi les 12 empreintes de fichiers avant de lancer le profil choisi
 ## Prévisualisation sans installer
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/djathy123/sheva-g10-installer/v0.2.2/install-remote.sh | bash -s -- --profile full --mission m13
+curl -fsSL https://raw.githubusercontent.com/djathy123/sheva-g10-installer/v0.3.0/install-remote.sh | bash -s -- --profile full --mission m13
 ```
 
 ## CLI après installation

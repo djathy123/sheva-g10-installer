@@ -1,88 +1,142 @@
 #!/usr/bin/env python3
-"""SHEVA Skills: lazy mission installer with source hashes and safe rollback.
-No secret scanning claims; only allowlisted original files in this signed-in bundle.
-"""
-import argparse, hashlib, json, shutil, subprocess, sys
+"""SHEVA Skills mission-scoped installer v0.3: provenance-aware, safe rollback."""
+import argparse, hashlib, json, os, shutil, sys, tempfile
 from pathlib import Path
 
-BASE = Path(__file__).resolve().parent
-CATALOG = BASE / "skills" / "catalog"
-REG = BASE / "skills" / "registry.json"
-MANAGED = Path.home() / ".sheva" / "skills"
-MISSION_MAP = {"m13":["sheva-mission-safety","sheva-m13-audit"],
-               "figo":["sheva-mission-safety","sheva-figo-isolation"],
-               "future":["sheva-mission-safety"]}
-AGENTS = {"claude":Path.home()/".claude"/"skills",
-          "codex":Path.home()/".codex"/"skills"}
-def digest(p):return hashlib.sha256(p.read_bytes()).hexdigest()
-def read_reg():
-    r=json.loads(REG.read_text(encoding="utf-8"))
-    assert r["schema"]=="sheva.skills.registry.v1"
-    seen=set()
-    for x in r["skills"]:
-        slug=x["slug"]
-        assert slug not in seen and slug in {x for vs in MISSION_MAP.values() for x in vs}
-        assert slug.isascii() and slug.replace("-","").isalnum()
-        p=CATALOG/slug/"SKILL.md"
-        assert p.is_file(),str(p)
-        assert digest(p)==x["sha256"], "Skill modified: "+slug
-        assert p.stat().st_size<12000
-        content=p.read_text(encoding="utf-8")
-        assert content.startswith("---\n") and "\nname: "+slug+"\n" in content
-        seen.add(slug)
-    return r
-def selection(reg, mission):
-    entries={x["slug"]:x for x in reg["skills"]}
-    return [entries[x] for x in MISSION_MAP[mission]]
-def dest_for(agent,slug):
+BASE=Path(__file__).resolve().parent
+CATALOG=BASE/"skills"/"catalog"
+REG=BASE/"skills"/"registry.json"
+MANAGED=Path.home()/".sheva"/"skills"
+STATE=MANAGED/"state.json"
+AGENTS={"claude":Path.home()/".claude"/"skills","codex":Path.home()/".codex"/"skills"}
+SCHEMA="sheva.skills.state.v2"
+
+def sha(p):return hashlib.sha256(p.read_bytes()).hexdigest()
+def registry():
+    data=json.loads(REG.read_text())
+    if data.get("schema")!="sheva.skills.registry.v1":raise RuntimeError("BAD_REGISTRY_SCHEMA")
+    mapping=data.get("mission_map")
+    entries={e["slug"]:e for e in data["skills"]}
+    if not isinstance(mapping,dict) or not mapping:raise RuntimeError("BAD_MISSION_MAP")
+    for name,slugs in mapping.items():
+        if not name.isascii() or not name.replace("-","").isalnum():raise RuntimeError("UNSAFE_MISSION_ID")
+        if not isinstance(slugs,list) or not slugs:raise RuntimeError("EMPTY_MISSION")
+        for slug in slugs:
+            if slug not in entries or not slug.isascii() or not slug.replace("-","").isalnum():
+                raise RuntimeError("UNSAFE_SKILL_ID")
+            f=CATALOG/slug/"SKILL.md"
+            if not f.is_file() or f.is_symlink() or sha(f)!=entries[slug]["sha256"]:
+                raise RuntimeError("SKILL_MANIFEST_MISMATCH:"+slug)
+            if f.stat().st_size>12000:raise RuntimeError("SKILL_TOO_LARGE")
+            content=f.read_text()
+            if not content.startswith("---\n") or "\nname: "+slug+"\n" not in content:
+                raise RuntimeError("BAD_SKILL_METADATA")
+    return data,mapping
+
+def read_state():
+    if not STATE.exists():
+        return {"schema":SCHEMA,"active_missions":{},"created_files":{}}
+    if STATE.is_symlink():raise RuntimeError("STATE_IS_SYMLINK")
+    data=json.loads(STATE.read_text())
+    if data.get("schema")!=SCHEMA:raise RuntimeError("UNKNOWN_STATE_SCHEMA")
+    if not isinstance(data.get("active_missions"),dict) or not isinstance(data.get("created_files"),dict):
+        raise RuntimeError("INVALID_STATE_DATA")
+    return data
+
+def save_state(st):
+    MANAGED.mkdir(parents=True,exist_ok=True)
+    with tempfile.NamedTemporaryFile(mode="w",dir=MANAGED,prefix=".state-",delete=False) as f:
+        path=Path(f.name)
+        os.chmod(path,0o600)
+        json.dump(st,f,sort_keys=True,indent=2)
+        f.write("\n")
+    os.replace(path,STATE)
+
+def location(agent,slug):
     return AGENTS[agent]/slug/"SKILL.md"
-def state(slug,agent):
-    src=CATALOG/slug/"SKILL.md"
-    dst=dest_for(agent,slug)
-    if dst.is_file():return "PASS" if digest(dst)==digest(src) else "CONFLICT"
-    if dst.exists() or dst.parent.is_symlink():return "CONFLICT"
+
+def local_status(agent,slug):
+    dest=location(agent,slug)
+    if dest.parent.is_symlink() or dest.is_symlink():return "CONFLICT"
+    if dest.is_file():
+        return "PASS" if sha(dest)==sha(CATALOG/slug/"SKILL.md") else "CONFLICT"
+    if dest.exists() or dest.parent.exists():return "CONFLICT"
     return "MISSING"
-def print_json(d):print(json.dumps(d,indent=2,ensure_ascii=False,sort_keys=True))
+
 def main():
-    p=argparse.ArgumentParser()
+    p=argparse.ArgumentParser(prog="sheva-skills")
     p.add_argument("action",choices=["list","plan","install","verify","rollback"])
-    p.add_argument("--mission",choices=sorted(MISSION_MAP),default="m13")
+    p.add_argument("--mission",default="m13")
     p.add_argument("--agents",choices=["claude","codex","both"],default="both")
     args=p.parse_args()
-    reg=read_reg(); skills=selection(reg,args.mission)
-    names=["claude","codex"] if args.agents=="both" else [args.agents]
-    summary={"schema":"sheva.skills.action.v1","action":args.action,"mission":args.mission,
-             "selected":[x["slug"] for x in skills], "agents":names,
-             "results":[],"forbidden":{"secret_transfer":True,"overwrite_existing":True,"project_data_transfer":True}}
+    reg,mapping=registry()
+    if args.mission not in mapping:p.error("Unknown mission")
+    agents=["claude","codex"] if args.agents=="both" else [args.agents]
+    selected=mapping[args.mission]
+    st=read_state()
+    result={"schema":"sheva.skills.action.v2","action":args.action,
+            "mission":args.mission,"selected":selected,"agents":agents,"results":[],
+            "secret_transfer":False,"user_files_overwritten":False}
+    all_rows=[(agent,slug) for agent in agents for slug in selected]
     if args.action in ("list","plan","verify"):
-        for e in skills:
-            for a in names:summary["results"].append({"skill":e["slug"],"agent":a,"status":state(e["slug"],a)})
-        print_json(summary)
-        if args.action=="verify" and any(v["status"]!="PASS" for v in summary["results"]):raise SystemExit(3)
+        for agent,slug in all_rows:
+            result["results"].append({"agent":agent,"skill":slug,"status":local_status(agent,slug)})
+        print(json.dumps(result,indent=2))
+        if args.action=="verify" and any(x["status"]!="PASS" for x in result["results"]):
+            raise SystemExit(3)
         return
     if args.action=="install":
-        pre=[(x["slug"],a,state(x["slug"],a)) for x in skills for a in names]
-        if any(s=="CONFLICT" for _,_,s in pre):
-            print_json({"error":"CONFLICT; refusing to overwrite","details":pre});raise SystemExit(4)
-        for slug,a,old in pre:
-            dst=dest_for(a,slug)
-            if old=="MISSING":
-                dst.parent.mkdir(parents=True,exist_ok=False)
-                shutil.copy2(CATALOG/slug/"SKILL.md",dst)
-            summary["results"].append({"skill":slug,"agent":a,"status":state(slug,a)})
-    elif args.action=="rollback":
-        for e in skills:
-            slug=e["slug"]
-            for a in names:
-                dst=dest_for(a,slug)
-                status=state(slug,a)
-                if status=="PASS":
-                    dst.unlink()
-                    if not list(dst.parent.iterdir()):dst.parent.rmdir()
-                    summary["results"].append({"skill":slug,"agent":a,"status":"ROLLED_BACK"})
-                elif status=="MISSING":
-                    summary["results"].append({"skill":slug,"agent":a,"status":"ALREADY_ABSENT"})
-                else:
-                    summary["results"].append({"skill":slug,"agent":a,"status":"CONFLICT_LEFT_UNTOUCHED"})
-    print_json(summary)
-if __name__=="__main__":main()
+        problems=[(a,slug,local_status(a,slug)) for a,slug in all_rows if local_status(a,slug)=="CONFLICT"]
+        if problems:
+            print(json.dumps({"error":"CONFLICT_NO_OVERWRITE","details":problems}))
+            raise SystemExit(4)
+        created=[]
+        try:
+            for agent,slug in all_rows:
+                dest=location(agent,slug)
+                old=local_status(agent,slug)
+                if old=="MISSING":
+                    dest.parent.mkdir(parents=True,exist_ok=False)
+                    shutil.copy2(CATALOG/slug/"SKILL.md",dest)
+                    created.append((agent,slug))
+                    st["created_files"][agent+"/"+slug]=sha(dest)
+                result["results"].append({"agent":agent,"skill":slug,
+                                          "status":local_status(agent,slug),
+                                          "ownership":"created" if (agent+"/"+slug) in st["created_files"] else "preexisting"})
+            current=set(st["active_missions"].get(args.mission,[]))
+            st["active_missions"][args.mission]=sorted(current|set(agents))
+            save_state(st)
+        except Exception:
+            for agent,slug in reversed(created):
+                dest=location(agent,slug)
+                if dest.is_file() and sha(dest)==sha(CATALOG/slug/"SKILL.md"):
+                    dest.unlink()
+                    if not list(dest.parent.iterdir()):dest.parent.rmdir()
+            raise
+    else: # rollback
+        current=set(st["active_missions"].get(args.mission,[]))
+        remaining=current-set(agents)
+        if remaining:st["active_missions"][args.mission]=sorted(remaining)
+        else:st["active_missions"].pop(args.mission,None)
+        for agent,slug in all_rows:
+            dest=location(agent,slug)
+            key=agent+"/"+slug
+            status=local_status(agent,slug)
+            in_use=any(agent in active and slug in mapping.get(mission,[])
+                       for mission,active in st["active_missions"].items())
+            if in_use:
+                outcome="SHARED_SKILL_RETAINED"
+            elif key not in st["created_files"]:
+                outcome="UNMANAGED_LEFT_UNTOUCHED"
+            elif status!="PASS" or st["created_files"][key]!=sha(dest):
+                outcome="CONFLICT_LEFT_UNTOUCHED"
+            else:
+                dest.unlink()
+                if not list(dest.parent.iterdir()):dest.parent.rmdir()
+                del st["created_files"][key]
+                outcome="ROLLED_BACK"
+            result["results"].append({"agent":agent,"skill":slug,"status":outcome})
+        save_state(st)
+    print(json.dumps(result,indent=2))
+if __name__=="__main__":
+    main()

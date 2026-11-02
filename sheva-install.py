@@ -3,7 +3,7 @@
 import argparse, datetime, hashlib, json, os, platform, shutil, subprocess, sys
 from pathlib import Path
 
-VERSION = "0.2.2"
+VERSION = "0.3.0"
 ROOT = Path.home() / "sheva-toolchain"
 PACKAGES_PY = ["langgraph==1.1.10", "langgraph-checkpoint-sqlite==3.1.3", "hatchet-sdk==1.44.0"]
 PACKAGES_NODE = ["@openhands/agent-canvas@1.34.0", "nx@24.0.3", "dependency-cruiser@18.7.0",

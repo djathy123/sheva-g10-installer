@@ -171,7 +171,7 @@ def safe_report(data,name):
  p.write_text(json.dumps(data,ensure_ascii=False,sort_keys=True,indent=2)+"\n")
  return p
 def print_roadmap(d):
- print("SHEVA AI FACTORY CLI v0.2.2 |",d["host"],"|",d["role_hint"],"| mission",d["skills"]["mission"].upper())
+ print("SHEVA AI FACTORY CLI v0.3.0 |",d["host"],"|",d["role_hint"],"| mission",d["skills"]["mission"].upper())
  print("SHEVA 21 TOOLS: %s/%s present or healthy (not all integrations certified), disk free %.2f GiB"%(d["counts"]["installed_or_healthy"],d["counts"]["total"],d["free_gib"]))
  print("AGENT CLI EXTRAS: Claude Code=%s Codex=%s"%(d["agent_cli"]["claude_code_cli"],d["agent_cli"]["codex_cli"]))
  print("SERVICES:",json.dumps(d["services"],sort_keys=True))
