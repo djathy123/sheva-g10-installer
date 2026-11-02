@@ -1,0 +1,52 @@
+{
+  "schema": "sheva.skills.registry.v1",
+  "version": "0.1.0",
+  "skills": [
+    {
+      "slug": "sheva-mission-safety",
+      "version": "0.1.0",
+      "sha256": "8de46dac5e188e64d3702b29be01d98d8a2739d4499c2fc257a5ac3bdf63f3e6",
+      "source": "sheva-g10-pilot-generated",
+      "classification": "synthetic-workflow-only",
+      "requires_agent_auth": false,
+      "engine_access": "NOT_GRANTED"
+    },
+    {
+      "slug": "sheva-m13-audit",
+      "version": "0.1.0",
+      "sha256": "7078de2bbc6f7b3e7db63eedc9167287b1ce936f7b98c0e8fb7e94e7b98a13d4",
+      "source": "sheva-g10-pilot-generated",
+      "classification": "synthetic-workflow-only",
+      "requires_agent_auth": false,
+      "engine_access": "NOT_GRANTED"
+    },
+    {
+      "slug": "sheva-figo-isolation",
+      "version": "0.1.0",
+      "sha256": "05e76fdf63241ec2b72c17236e94847b185cff79b734905efd5d867121c682b4",
+      "source": "sheva-g10-pilot-generated",
+      "classification": "synthetic-workflow-only",
+      "requires_agent_auth": false,
+      "engine_access": "NOT_GRANTED"
+    }
+  ],
+  "mission_map": {
+    "m13": [
+      "sheva-mission-safety",
+      "sheva-m13-audit"
+    ],
+    "figo": [
+      "sheva-mission-safety",
+      "sheva-figo-isolation"
+    ],
+    "future": [
+      "sheva-mission-safety"
+    ]
+  },
+  "policy": {
+    "no_overwrite": true,
+    "no_secrets": true,
+    "no_project_data": true,
+    "default_load": "per-mission"
+  }
+}
